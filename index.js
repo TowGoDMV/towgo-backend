@@ -1,5 +1,4 @@
 const express = require('express')
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 const cors = require('cors')
 
 const app = express()
@@ -7,11 +6,20 @@ app.use(express.json())
 app.use(cors())
 
 app.get('/', (req, res) => {
-  res.json({ status: 'TowGo payment server running!' })
+  res.json({ 
+    status: 'TowGo payment server running!',
+    stripeConfigured: !!process.env.STRIPE_SECRET_KEY
+  })
 })
 
 app.post('/create-payment-intent', async (req, res) => {
   try {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return res.status(400).json({ 
+        error: 'Stripe key not configured' 
+      })
+    }
+    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
     const { amount, currency } = req.body
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100),
@@ -23,6 +31,7 @@ app.post('/create-payment-intent', async (req, res) => {
       paymentIntentId: paymentIntent.id
     })
   } catch (error) {
+    console.error('Payment error:', error.message)
     res.status(400).json({ error: error.message })
   }
 })
@@ -54,6 +63,7 @@ app.post('/calculate-price', async (req, res) => {
 
 app.post('/confirm-payment', async (req, res) => {
   try {
+    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
     const { paymentIntentId } = req.body
     const paymentIntent = await stripe.paymentIntents.retrieve(
       paymentIntentId
@@ -67,4 +77,5 @@ app.post('/confirm-payment', async (req, res) => {
 const PORT = process.env.PORT || 3000
 app.listen(PORT, () => {
   console.log(`TowGo payment server running on port ${PORT}`)
+  console.log(`Stripe configured: ${!!process.env.STRIPE_SECRET_KEY}`)
 })
